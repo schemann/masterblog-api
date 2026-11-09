@@ -1,4 +1,6 @@
 """Masterblog API: a JSON API for blog posts, built with Flask."""
+from datetime import date, datetime
+
 from flask import Blueprint, Flask, jsonify, request
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -17,13 +19,30 @@ limiter = Limiter(app=app, key_func=get_remote_address, default_limits=["100 per
 api = Blueprint('api', __name__)
 
 POSTS = [
-    {"id": 1, "title": "First post", "content": "This is the first post."},
-    {"id": 2, "title": "Second post", "content": "This is the second post."},
+    {"id": 1, "title": "First post", "content": "This is the first post.",
+     "author": "John Doe", "date": "2023-06-07"},
+    {"id": 2, "title": "Second post", "content": "This is the second post.",
+     "author": "Jane Doe", "date": "2023-06-08"},
 ]
 
+DATE_FORMAT = "%Y-%m-%d"
+DEFAULT_AUTHOR = "Anonymous"
 REQUIRED_FIELDS = ("title", "content")
-SORT_FIELDS = ("title", "content")
+TEXT_FIELDS = ("title", "content", "author")
+POST_FIELDS = ("title", "content", "author", "date")
+SORT_FIELDS = POST_FIELDS
+SEARCH_FIELDS = POST_FIELDS
 SORT_DIRECTIONS = ("asc", "desc")
+
+
+def parse_date(value):
+    """Return the date for a 'YYYY-MM-DD' string; raise ValueError otherwise."""
+    if not isinstance(value, str):
+        raise ValueError("date must be a string in the format YYYY-MM-DD.")
+    try:
+        return datetime.strptime(value.strip(), DATE_FORMAT).date()
+    except ValueError as error:
+        raise ValueError("date must be a valid date in the format YYYY-MM-DD.") from error
 
 
 def missing_fields(data):
@@ -32,6 +51,23 @@ def missing_fields(data):
         return list(REQUIRED_FIELDS)
     return [field for field in REQUIRED_FIELDS
             if not isinstance(data.get(field), str) or not data[field].strip()]
+
+
+def clean_fields(data):
+    """Return the post fields present in data, stripped and checked; raise ValueError.
+
+    title, content and author must be non-empty strings, date must be 'YYYY-MM-DD'.
+    """
+    cleaned = {}
+    for field in TEXT_FIELDS:
+        if field in data:
+            value = data[field]
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{field} must not be empty.")
+            cleaned[field] = value.strip()
+    if "date" in data:
+        cleaned["date"] = parse_date(data["date"]).strftime(DATE_FORMAT)
+    return cleaned
 
 
 def next_post_id():
@@ -47,8 +83,15 @@ def find_post_by_id(post_id):
     return None
 
 
+def sort_key(field):
+    """Return a sort key for a post field: real dates for 'date', lower-case text otherwise."""
+    if field == "date":
+        return lambda post: parse_date(post["date"])
+    return lambda post: post[field].lower()
+
+
 def sort_posts(posts):
-    """Sort posts by ?sort=title|content&direction=asc|desc; raise ValueError if invalid.
+    """Sort posts by ?sort=<field>&direction=asc|desc; raise ValueError if invalid.
 
     Without these parameters the posts keep their original order.
     """
@@ -65,8 +108,7 @@ def sort_posts(posts):
     if direction not in SORT_DIRECTIONS:
         raise ValueError(f"Invalid direction '{direction}'. "
                          f"Use one of: {', '.join(SORT_DIRECTIONS)}.")
-    return sorted(posts, key=lambda post: post[sort_field].lower(),
-                  reverse=direction == 'desc')
+    return sorted(posts, key=sort_key(sort_field), reverse=direction == 'desc')
 
 
 def read_positive_int(name, default):
@@ -101,7 +143,7 @@ def posts_response(posts):
 def get_posts():
     """Return all blog posts as JSON, optionally sorted and paginated.
 
-    Query parameters: sort=title|content, direction=asc|desc, page, limit.
+    Query parameters: sort=title|content|author|date, direction=asc|desc, page, limit.
     """
     try:
         return posts_response(sort_posts(POSTS))
@@ -111,20 +153,28 @@ def get_posts():
 
 @api.route('/posts', methods=['POST'])
 def add_post():
-    """Add a new post from the JSON body {"title", "content"}; return it with 201."""
+    """Add a new post from the JSON body; return it with 201.
+
+    title and content are required; author defaults to "Anonymous", date to today.
+    """
     data = request.get_json(silent=True)
     missing = missing_fields(data)
     if missing:
         return jsonify({"error": "Missing required fields", "missing": missing}), 400
+    try:
+        fields = clean_fields(data)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
 
     new_post = {
         "id": next_post_id(),
-        "title": data["title"].strip(),
-        "content": data["content"].strip(),
+        "title": fields["title"],
+        "content": fields["content"],
+        "author": fields.get("author", DEFAULT_AUTHOR),
+        "date": fields.get("date", date.today().strftime(DATE_FORMAT)),
     }
     POSTS.append(new_post)
     return jsonify(new_post), 201
-
 
 
 @api.route('/posts/<int:post_id>', methods=['DELETE'])
@@ -139,7 +189,7 @@ def delete_post(post_id):
 
 @api.route('/posts/<int:post_id>', methods=['PUT'])
 def update_post(post_id):
-    """Update title and/or content of a post; fields left out keep their value."""
+    """Update title, content, author and/or date; fields left out keep their value."""
     post = find_post_by_id(post_id)
     if post is None:
         return jsonify({"error": f"Post with id {post_id} was not found."}), 404
@@ -151,26 +201,24 @@ def update_post(post_id):
     data = {} if data is None else data
     if not isinstance(data, dict):
         return jsonify({"error": "The request body must be a JSON object."}), 400
+    try:
+        fields = clean_fields(data)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
 
-    invalid = [field for field in REQUIRED_FIELDS
-               if field in data and (not isinstance(data[field], str) or not data[field].strip())]
-    if invalid:
-        return jsonify({"error": "Fields must not be empty", "invalid": invalid}), 400
-
-    for field in REQUIRED_FIELDS:
-        if field in data:
-            post[field] = data[field].strip()
+    post.update(fields)
     return jsonify(post), 200
 
 
 @api.route('/posts/search', methods=['GET'])
 def search_posts():
-    """Return posts whose title contains ?title=... or whose content contains ?content=...
+    """Return posts where any given field contains its search term.
 
-    The search ignores upper and lower case. Without search terms all posts are returned.
-    The result can be paginated with page and limit like the list endpoint.
+    Query parameters: title, content, author, date (e.g. date=2023-06). The search ignores
+    upper and lower case; several terms match posts that fit any of them. Without search
+    terms all posts are returned. The result can be paginated with page and limit.
     """
-    terms = {field: request.args.get(field, "").strip().lower() for field in REQUIRED_FIELDS}
+    terms = {field: request.args.get(field, "").strip().lower() for field in SEARCH_FIELDS}
     terms = {field: term for field, term in terms.items() if term}
     results = POSTS
     if terms:
@@ -182,9 +230,9 @@ def search_posts():
         return jsonify({"error": str(error)}), 400
 
 
-
 app.register_blueprint(api, url_prefix='/api')
 app.register_blueprint(api, url_prefix='/api/v1', name='api_v1')
+
 
 @app.errorhandler(429)
 def rate_limit_error(error):
