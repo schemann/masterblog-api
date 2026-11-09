@@ -26,6 +26,14 @@ def next_post_id():
     return max((post["id"] for post in POSTS), default=0) + 1
 
 
+def find_post_by_id(post_id):
+    """Return the post with this id, or None if there is none."""
+    for post in POSTS:
+        if post["id"] == post_id:
+            return post
+    return None
+
+
 @app.route('/api/posts', methods=['GET'])
 def get_posts():
     """Return all blog posts as JSON."""
@@ -48,6 +56,16 @@ def add_post():
     POSTS.append(new_post)
     return jsonify(new_post), 201
 
+
+
+@app.route('/api/posts/<int:post_id>', methods=['DELETE'])
+def delete_post(post_id):
+    """Delete the post with this id; 404 if it does not exist."""
+    post = find_post_by_id(post_id)
+    if post is None:
+        return jsonify({"error": f"Post with id {post_id} was not found."}), 404
+    POSTS.remove(post)
+    return jsonify({"message": f"Post with id {post_id} has been deleted successfully."}), 200
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5002, debug=True)
