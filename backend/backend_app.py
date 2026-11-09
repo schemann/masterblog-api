@@ -1,5 +1,5 @@
 """Masterblog API: a JSON API for blog posts, built with Flask."""
-from flask import Flask, jsonify, request
+from flask import Blueprint, Flask, jsonify, request
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -10,6 +10,11 @@ CORS(app)  # This will enable CORS for all routes
 # Rate limiting per client IP for every route; 429 answers carry a Retry-After header
 limiter = Limiter(app=app, key_func=get_remote_address, default_limits=["100 per minute"],
                   storage_uri="memory://", headers_enabled=True)
+
+# All endpoints live in one blueprint, registered twice: under /api (used by the frontend)
+# and under /api/v1 (the versioned path; a future v2 can change the contract without
+# breaking v1 clients).
+api = Blueprint('api', __name__)
 
 POSTS = [
     {"id": 1, "title": "First post", "content": "This is the first post."},
@@ -92,7 +97,7 @@ def posts_response(posts):
     return response
 
 
-@app.route('/api/posts', methods=['GET'])
+@api.route('/posts', methods=['GET'])
 def get_posts():
     """Return all blog posts as JSON, optionally sorted and paginated.
 
@@ -104,7 +109,7 @@ def get_posts():
         return jsonify({"error": str(error)}), 400
 
 
-@app.route('/api/posts', methods=['POST'])
+@api.route('/posts', methods=['POST'])
 def add_post():
     """Add a new post from the JSON body {"title", "content"}; return it with 201."""
     data = request.get_json(silent=True)
@@ -122,7 +127,7 @@ def add_post():
 
 
 
-@app.route('/api/posts/<int:post_id>', methods=['DELETE'])
+@api.route('/posts/<int:post_id>', methods=['DELETE'])
 def delete_post(post_id):
     """Delete the post with this id; 404 if it does not exist."""
     post = find_post_by_id(post_id)
@@ -132,7 +137,7 @@ def delete_post(post_id):
     return jsonify({"message": f"Post with id {post_id} has been deleted successfully."}), 200
 
 
-@app.route('/api/posts/<int:post_id>', methods=['PUT'])
+@api.route('/posts/<int:post_id>', methods=['PUT'])
 def update_post(post_id):
     """Update title and/or content of a post; fields left out keep their value."""
     post = find_post_by_id(post_id)
@@ -158,7 +163,7 @@ def update_post(post_id):
     return jsonify(post), 200
 
 
-@app.route('/api/posts/search', methods=['GET'])
+@api.route('/posts/search', methods=['GET'])
 def search_posts():
     """Return posts whose title contains ?title=... or whose content contains ?content=...
 
@@ -176,6 +181,10 @@ def search_posts():
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
 
+
+
+app.register_blueprint(api, url_prefix='/api')
+app.register_blueprint(api, url_prefix='/api/v1', name='api_v1')
 
 @app.errorhandler(429)
 def rate_limit_error(error):
