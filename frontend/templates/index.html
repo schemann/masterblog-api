@@ -4,21 +4,59 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Blog Posts</title>
+    <link rel="icon" href="data:,">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="static/styles.css">
 </head>
 <body>
     <div class="container">
         <h1>📚 Blog Posts</h1>
+
         <div class="input-field">
             <input type="text" id="api-base-url" placeholder="Enter API Base URL" value="http://127.0.0.1:5002/api">
             <button onclick="loadPosts()">Load Posts</button>
         </div>
+
+        <h2 class="section-title">Add a post</h2>
         <div class="input-field">
             <input type="text" id="post-title" placeholder="Enter Post Title">
             <input type="text" id="post-content" placeholder="Enter Post Content">
+        </div>
+        <div class="input-field">
+            <input type="text" id="post-author" placeholder="Author (optional)">
+            <input type="date" id="post-date" title="Date (optional, today if empty)">
             <button onclick="addPost()">Add Post</button>
         </div>
+
+        <h2 class="section-title">Find and sort</h2>
+        <div class="input-field">
+            <select id="search-field" aria-label="Search in">
+                <option value="title">Title</option>
+                <option value="content">Content</option>
+                <option value="author">Author</option>
+                <option value="date">Date</option>
+            </select>
+            <input type="text" id="search-term" placeholder="Search term, e.g. flask or 2023-06">
+            <button onclick="searchPosts()">Search</button>
+        </div>
+        <div class="input-field">
+            <select id="sort-field" aria-label="Sort by">
+                <option value="">Original order</option>
+                <option value="title">Title</option>
+                <option value="content">Content</option>
+                <option value="author">Author</option>
+                <option value="date">Date</option>
+            </select>
+            <select id="sort-direction" aria-label="Sort direction">
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+            </select>
+            <button onclick="loadPosts()">Sort</button>
+            <button class="button-secondary" onclick="resetView()">Show all</button>
+        </div>
+
+        <p id="status" class="status" role="status"></p>
+
         <div id="post-container">
             <!-- Blog posts will be inserted here by JavaScript -->
         </div>

@@ -75,10 +75,6 @@ body {
 }
 
 .post button {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background-color: #ff4444;
     color: #fff;
     border: none;
     padding: 5px 10px;
@@ -86,6 +82,88 @@ body {
     cursor: pointer;
 }
 
-.post button:hover {
+.post .button-delete {
+    background-color: #ff4444;
+}
+
+.post .button-delete:hover {
     background-color: #cc0000;
+}
+
+.post .button-edit {
+    background-color: #4466ee;
+}
+
+.post .button-edit:hover {
+    background-color: #3355dd;
+}
+
+.post .meta {
+    margin-top: 4px;
+    color: #777;
+    font-size: 14px;
+}
+
+.post input {
+    display: block;
+    width: 100%;
+    margin-bottom: 8px;
+    padding: 8px;
+    font-size: 16px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+}
+
+.actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.section-title {
+    font-size: 18px;
+    margin: 10px 0;
+    color: #333;
+}
+
+.input-field select {
+    height: 40px;
+    padding: 0 10px;
+    margin-right: 10px;
+    font-size: 16px;
+    border: none;
+    border-radius: 8px;
+    background-color: #fff;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.input-field button + button {
+    margin-left: 10px;
+}
+
+.input-field .button-secondary,
+.post .button-secondary {
+    background-color: #888;
+}
+
+.input-field .button-secondary:hover,
+.post .button-secondary:hover {
+    background-color: #666;
+}
+
+.status {
+    min-height: 1.5em;
+    color: #2e7d32;
+}
+
+.status-error {
+    color: #c62828;
+}
+
+.empty {
+    color: #777;
+}
+
+.input-field input:last-child {
+    margin-right: 0;
 }
