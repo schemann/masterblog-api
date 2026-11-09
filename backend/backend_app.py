@@ -1,4 +1,6 @@
 """Masterblog API: a JSON API for blog posts, built with Flask."""
+import json
+import os
 from datetime import date, datetime
 
 from flask import Blueprint, Flask, jsonify, request
@@ -18,7 +20,11 @@ limiter = Limiter(app=app, key_func=get_remote_address, default_limits=["100 per
 # breaking v1 clients).
 api = Blueprint('api', __name__)
 
-POSTS = [
+# Posts are stored in posts.json next to this file, so they survive server restarts.
+POSTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "posts.json")
+
+# Written to posts.json when the file does not exist yet.
+DEFAULT_POSTS = [
     {"id": 1, "title": "First post", "content": "This is the first post.",
      "author": "John Doe", "date": "2023-06-07"},
     {"id": 2, "title": "Second post", "content": "This is the second post.",
@@ -33,6 +39,42 @@ POST_FIELDS = ("title", "content", "author", "date")
 SORT_FIELDS = POST_FIELDS
 SEARCH_FIELDS = POST_FIELDS
 SORT_DIRECTIONS = ("asc", "desc")
+
+
+class StorageError(Exception):
+    """Raised when posts.json cannot be read or written."""
+
+
+def load_posts():
+    """Return the list of posts from posts.json; create the file if it does not exist.
+
+    Raises StorageError if the file cannot be read or does not contain a list of posts.
+    """
+    if not os.path.exists(POSTS_FILE):
+        save_posts(DEFAULT_POSTS)
+    try:
+        with open(POSTS_FILE, "r", encoding="utf-8") as file:
+            posts = json.load(file)
+    except (OSError, json.JSONDecodeError) as error:
+        raise StorageError(f"Could not read the posts file: {error}") from error
+    if not isinstance(posts, list):
+        raise StorageError("The posts file does not contain a list of posts.")
+    return posts
+
+
+def save_posts(posts):
+    """Write the list of posts to posts.json; raise StorageError if that fails.
+
+    The data goes to a temporary file first, which then replaces posts.json, so a failed
+    write never leaves a half-written file behind.
+    """
+    temp_file = POSTS_FILE + ".tmp"
+    try:
+        with open(temp_file, "w", encoding="utf-8") as file:
+            json.dump(posts, file, indent=4)
+        os.replace(temp_file, POSTS_FILE)
+    except OSError as error:
+        raise StorageError(f"Could not write the posts file: {error}") from error
 
 
 def parse_date(value):
@@ -70,14 +112,14 @@ def clean_fields(data):
     return cleaned
 
 
-def next_post_id():
+def next_post_id(posts):
     """Return a new unique integer id: one higher than the highest id in use."""
-    return max((post["id"] for post in POSTS), default=0) + 1
+    return max((post["id"] for post in posts), default=0) + 1
 
 
-def find_post_by_id(post_id):
-    """Return the post with this id, or None if there is none."""
-    for post in POSTS:
+def find_post_by_id(posts, post_id):
+    """Return the post with this id from posts, or None if there is none."""
+    for post in posts:
         if post["id"] == post_id:
             return post
     return None
@@ -146,7 +188,7 @@ def get_posts():
     Query parameters: sort=title|content|author|date, direction=asc|desc, page, limit.
     """
     try:
-        return posts_response(sort_posts(POSTS))
+        return posts_response(sort_posts(load_posts()))
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
 
@@ -166,31 +208,36 @@ def add_post():
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
 
+    posts = load_posts()
     new_post = {
-        "id": next_post_id(),
+        "id": next_post_id(posts),
         "title": fields["title"],
         "content": fields["content"],
         "author": fields.get("author", DEFAULT_AUTHOR),
         "date": fields.get("date", date.today().strftime(DATE_FORMAT)),
     }
-    POSTS.append(new_post)
+    posts.append(new_post)
+    save_posts(posts)
     return jsonify(new_post), 201
 
 
 @api.route('/posts/<int:post_id>', methods=['DELETE'])
 def delete_post(post_id):
     """Delete the post with this id; 404 if it does not exist."""
-    post = find_post_by_id(post_id)
+    posts = load_posts()
+    post = find_post_by_id(posts, post_id)
     if post is None:
         return jsonify({"error": f"Post with id {post_id} was not found."}), 404
-    POSTS.remove(post)
+    posts.remove(post)
+    save_posts(posts)
     return jsonify({"message": f"Post with id {post_id} has been deleted successfully."}), 200
 
 
 @api.route('/posts/<int:post_id>', methods=['PUT'])
 def update_post(post_id):
     """Update title, content, author and/or date; fields left out keep their value."""
-    post = find_post_by_id(post_id)
+    posts = load_posts()
+    post = find_post_by_id(posts, post_id)
     if post is None:
         return jsonify({"error": f"Post with id {post_id} was not found."}), 404
 
@@ -207,6 +254,7 @@ def update_post(post_id):
         return jsonify({"error": str(error)}), 400
 
     post.update(fields)
+    save_posts(posts)
     return jsonify(post), 200
 
 
@@ -220,9 +268,9 @@ def search_posts():
     """
     terms = {field: request.args.get(field, "").strip().lower() for field in SEARCH_FIELDS}
     terms = {field: term for field, term in terms.items() if term}
-    results = POSTS
+    results = load_posts()
     if terms:
-        results = [post for post in POSTS
+        results = [post for post in results
                    if any(term in post[field].lower() for field, term in terms.items())]
     try:
         return posts_response(results)
@@ -232,6 +280,13 @@ def search_posts():
 
 app.register_blueprint(api, url_prefix='/api')
 app.register_blueprint(api, url_prefix='/api/v1', name='api_v1')
+
+
+@app.errorhandler(StorageError)
+def storage_error(error):
+    """Answer a failed read or write of posts.json with a JSON 500 error."""
+    app.logger.error("Storage error: %s", error)
+    return jsonify({"error": "The posts could not be loaded or saved. Please try again."}), 500
 
 
 @app.errorhandler(429)
