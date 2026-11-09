@@ -7,6 +7,7 @@ from flask import Blueprint, Flask, jsonify, request
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_swagger_ui import get_swaggerui_blueprint
 
 app = Flask(__name__)
 CORS(app)  # This will enable CORS for all routes
@@ -297,6 +298,18 @@ def search_posts():
 app.register_blueprint(api, url_prefix='/api')
 app.register_blueprint(api, url_prefix='/api/v1', name='api_v1')
 
+
+# API documentation (Swagger UI) at /api/docs, built from static/masterblog.json
+SWAGGER_URL = "/api/docs"
+API_URL = "/static/masterblog.json"
+swagger_ui_blueprint = get_swaggerui_blueprint(
+    SWAGGER_URL,
+    API_URL,
+    config={
+        'app_name': 'Masterblog API'
+    }
+)
+app.register_blueprint(swagger_ui_blueprint, url_prefix=SWAGGER_URL)
 
 @app.errorhandler(404)
 def not_found_error(_error):

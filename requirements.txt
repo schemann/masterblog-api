@@ -1,3 +1,4 @@
 Flask>=3.1,<4
 flask-cors>=6,<7
 Flask-Limiter>=4,<5
+flask-swagger-ui>=5,<6

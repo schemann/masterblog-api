@@ -1,0 +1,473 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Masterblog API",
+    "version": "1.0.0",
+    "description": "JSON API for blog posts. All endpoints are also available under /api/v1."
+  },
+  "basePath": "/api",
+  "tags": [
+    {
+      "name": "Post",
+      "description": "Post API - CRUD"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/posts": {
+      "get": {
+        "summary": "Returns all posts",
+        "description": "Without parameters the posts come in their original order.",
+        "tags": [
+          "Post"
+        ],
+        "parameters": [
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "description": "Field to sort by",
+            "enum": [
+              "title",
+              "content",
+              "author",
+              "date",
+              "likes"
+            ]
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "description": "Sort direction (default asc); needs sort",
+            "enum": [
+              "asc",
+              "desc"
+            ]
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "description": "Page number (pagination; limit defaults to 10)",
+            "minimum": 1
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "description": "Posts per page (pagination; page defaults to 1)",
+            "minimum": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of posts",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Post"
+              }
+            },
+            "headers": {
+              "X-Total-Count": {
+                "type": "integer",
+                "description": "Number of matching posts before pagination"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid sort, direction, page or limit",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "429": {
+            "description": "Too many requests (more than 100 per minute)",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Adds a new post",
+        "tags": [
+          "Post"
+        ],
+        "parameters": [
+          {
+            "name": "post",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/NewPost"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The created post",
+            "schema": {
+              "$ref": "#/definitions/Post"
+            }
+          },
+          "400": {
+            "description": "Missing title/content or invalid author/date",
+            "schema": {
+              "$ref": "#/definitions/MissingFieldsError"
+            }
+          },
+          "429": {
+            "description": "Too many requests (more than 100 per minute)",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/posts/{id}": {
+      "put": {
+        "summary": "Updates a post",
+        "description": "All fields are optional; fields left out keep their current value.",
+        "tags": [
+          "Post"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "description": "ID of the post"
+          },
+          {
+            "name": "post",
+            "in": "body",
+            "required": false,
+            "schema": {
+              "$ref": "#/definitions/PostUpdate"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The updated post",
+            "schema": {
+              "$ref": "#/definitions/Post"
+            }
+          },
+          "400": {
+            "description": "Body is not a JSON object, a field is empty or the date is invalid",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Post not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "429": {
+            "description": "Too many requests (more than 100 per minute)",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Deletes a post",
+        "tags": [
+          "Post"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "description": "ID of the post"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Post deleted",
+            "schema": {
+              "$ref": "#/definitions/Message"
+            }
+          },
+          "404": {
+            "description": "Post not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "429": {
+            "description": "Too many requests (more than 100 per minute)",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/posts/{id}/like": {
+      "post": {
+        "summary": "Likes a post",
+        "description": "Adds one like to the post.",
+        "tags": [
+          "Post"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "description": "ID of the post"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The liked post",
+            "schema": {
+              "$ref": "#/definitions/Post"
+            }
+          },
+          "404": {
+            "description": "Post not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "429": {
+            "description": "Too many requests (more than 100 per minute)",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/posts/search": {
+      "get": {
+        "summary": "Searches posts",
+        "description": "Returns posts where any given field contains its term (case-insensitive). Without terms all posts are returned.",
+        "tags": [
+          "Post"
+        ],
+        "parameters": [
+          {
+            "name": "title",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "description": "Text in the title"
+          },
+          {
+            "name": "content",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "description": "Text in the content"
+          },
+          {
+            "name": "author",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "description": "Text in the author"
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "description": "Part of the date, e.g. 2023-06"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "description": "Page number (pagination; limit defaults to 10)",
+            "minimum": 1
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "description": "Posts per page (pagination; page defaults to 1)",
+            "minimum": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of posts",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Post"
+              }
+            },
+            "headers": {
+              "X-Total-Count": {
+                "type": "integer",
+                "description": "Number of matching posts before pagination"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid page or limit",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "429": {
+            "description": "Too many requests (more than 100 per minute)",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "Post": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "content",
+        "author",
+        "date",
+        "likes"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "example": 1
+        },
+        "title": {
+          "type": "string",
+          "example": "First post"
+        },
+        "content": {
+          "type": "string",
+          "example": "This is the first post."
+        },
+        "author": {
+          "type": "string",
+          "example": "John Doe"
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "example": "2023-06-07"
+        },
+        "likes": {
+          "type": "integer",
+          "example": 0
+        }
+      }
+    },
+    "NewPost": {
+      "type": "object",
+      "required": [
+        "title",
+        "content"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "example": "My new post"
+        },
+        "content": {
+          "type": "string",
+          "example": "Hello from the API."
+        },
+        "author": {
+          "type": "string",
+          "description": "Default: Anonymous",
+          "example": "Ada"
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "description": "YYYY-MM-DD, default: today",
+          "example": "2026-11-09"
+        }
+      }
+    },
+    "PostUpdate": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "example": "New title"
+        },
+        "content": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "example": "2026-11-09"
+        }
+      }
+    },
+    "Message": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "example": "Post with id 1 has been deleted successfully."
+        }
+      }
+    },
+    "Error": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string",
+          "example": "Post with id 99 was not found."
+        }
+      }
+    },
+    "MissingFieldsError": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string",
+          "example": "Missing required fields"
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "example": [
+            "content"
+          ]
+        }
+      }
+    }
+  }
+}
