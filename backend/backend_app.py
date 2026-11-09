@@ -1,9 +1,15 @@
 """Masterblog API: a JSON API for blog posts, built with Flask."""
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
 CORS(app)  # This will enable CORS for all routes
+
+# Rate limiting per client IP for every route; 429 answers carry a Retry-After header
+limiter = Limiter(app=app, key_func=get_remote_address, default_limits=["100 per minute"],
+                  storage_uri="memory://", headers_enabled=True)
 
 POSTS = [
     {"id": 1, "title": "First post", "content": "This is the first post."},
@@ -169,6 +175,15 @@ def search_posts():
         return posts_response(results)
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
+
+
+@app.errorhandler(429)
+def rate_limit_error(error):
+    """Answer a client over its rate limit with a JSON error."""
+    response = jsonify({"error": f"Too Many Requests: {error.description}"})
+    response.status_code = 429
+    return response
+
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5002, debug=True)
