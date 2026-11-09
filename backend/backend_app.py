@@ -11,6 +11,8 @@ POSTS = [
 ]
 
 REQUIRED_FIELDS = ("title", "content")
+SORT_FIELDS = ("title", "content")
+SORT_DIRECTIONS = ("asc", "desc")
 
 
 def missing_fields(data):
@@ -36,8 +38,29 @@ def find_post_by_id(post_id):
 
 @app.route('/api/posts', methods=['GET'])
 def get_posts():
-    """Return all blog posts as JSON."""
-    return jsonify(POSTS)
+    """Return all blog posts as JSON.
+
+    Optional sorting: ?sort=title|content&direction=asc|desc (direction defaults to asc).
+    Without these parameters the posts keep their original order.
+    """
+    sort_field = request.args.get('sort')
+    direction = request.args.get('direction')
+    if sort_field is None and direction is None:
+        return jsonify(POSTS)
+
+    if sort_field is None:
+        return jsonify({"error": "direction needs a sort field, e.g. ?sort=title"}), 400
+    if sort_field not in SORT_FIELDS:
+        return jsonify({"error": f"Invalid sort field '{sort_field}'. "
+                                 f"Use one of: {', '.join(SORT_FIELDS)}."}), 400
+    direction = direction or 'asc'
+    if direction not in SORT_DIRECTIONS:
+        return jsonify({"error": f"Invalid direction '{direction}'. "
+                                 f"Use one of: {', '.join(SORT_DIRECTIONS)}."}), 400
+
+    sorted_posts = sorted(POSTS, key=lambda post: post[sort_field].lower(),
+                          reverse=direction == 'desc')
+    return jsonify(sorted_posts)
 
 
 @app.route('/api/posts', methods=['POST'])
