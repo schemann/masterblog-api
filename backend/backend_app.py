@@ -93,5 +93,20 @@ def update_post(post_id):
             post[field] = data[field].strip()
     return jsonify(post), 200
 
+
+@app.route('/api/posts/search', methods=['GET'])
+def search_posts():
+    """Return posts whose title contains ?title=... or whose content contains ?content=...
+
+    The search ignores upper and lower case. Without search terms all posts are returned.
+    """
+    terms = {field: request.args.get(field, "").strip().lower() for field in REQUIRED_FIELDS}
+    terms = {field: term for field, term in terms.items() if term}
+    if not terms:
+        return jsonify(POSTS)
+    results = [post for post in POSTS
+               if any(term in post[field].lower() for field, term in terms.items())]
+    return jsonify(results)
+
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5002, debug=True)
