@@ -298,6 +298,18 @@ app.register_blueprint(api, url_prefix='/api')
 app.register_blueprint(api, url_prefix='/api/v1', name='api_v1')
 
 
+@app.errorhandler(404)
+def not_found_error(_error):
+    """Answer unknown URLs with a JSON error instead of an HTML page."""
+    return jsonify({"error": "Not Found"}), 404
+
+
+@app.errorhandler(405)
+def method_not_allowed_error(_error):
+    """Answer an unsupported HTTP method with a JSON error."""
+    return jsonify({"error": "Method Not Allowed"}), 405
+
+
 @app.errorhandler(StorageError)
 def storage_error(error):
     """Answer a failed read or write of posts.json with a JSON 500 error."""
