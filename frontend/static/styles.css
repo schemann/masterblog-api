@@ -167,3 +167,11 @@ body {
 .input-field input:last-child {
     margin-right: 0;
 }
+
+.post .button-like {
+    background-color: #c2185b;
+}
+
+.post .button-like:hover {
+    background-color: #9c1349;
+}

@@ -78,6 +78,8 @@ function createPostElement(post) {
     postDiv.appendChild(createElement('p', null, post.content));
 
     const actions = createElement('div', 'actions');
+    actions.appendChild(createButton('\u2665 Like (' + (post.likes || 0) + ')', 'button-like',
+        () => likePost(post.id)));
     actions.appendChild(createButton('Edit', 'button-edit', () => showEditForm(postDiv, post)));
     actions.appendChild(createButton('Delete', 'button-delete', () => deletePost(post.id)));
     postDiv.appendChild(actions);
@@ -201,5 +203,13 @@ function deletePost(postId) {
         .then(result => {
             return loadPosts().then(() => showStatus(result.message));
         })
+        .catch(error => showStatus(error.message, true));
+}
+
+// Function to send a POST request to the API to like a post
+function likePost(postId) {
+    var baseUrl = getBaseUrl();
+    requestJson(baseUrl + '/posts/' + postId + '/like', { method: 'POST' })
+        .then(post => loadPosts().then(() => showStatus('You liked "' + post.title + '".')))
         .catch(error => showStatus(error.message, true));
 }

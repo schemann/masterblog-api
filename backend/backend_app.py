@@ -26,9 +26,9 @@ POSTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "posts.jso
 # Written to posts.json when the file does not exist yet.
 DEFAULT_POSTS = [
     {"id": 1, "title": "First post", "content": "This is the first post.",
-     "author": "John Doe", "date": "2023-06-07"},
+     "author": "John Doe", "date": "2023-06-07", "likes": 0},
     {"id": 2, "title": "Second post", "content": "This is the second post.",
-     "author": "Jane Doe", "date": "2023-06-08"},
+     "author": "Jane Doe", "date": "2023-06-08", "likes": 0},
 ]
 
 DATE_FORMAT = "%Y-%m-%d"
@@ -36,7 +36,7 @@ DEFAULT_AUTHOR = "Anonymous"
 REQUIRED_FIELDS = ("title", "content")
 TEXT_FIELDS = ("title", "content", "author")
 POST_FIELDS = ("title", "content", "author", "date")
-SORT_FIELDS = POST_FIELDS
+SORT_FIELDS = POST_FIELDS + ("likes",)
 SEARCH_FIELDS = POST_FIELDS
 SORT_DIRECTIONS = ("asc", "desc")
 
@@ -126,9 +126,12 @@ def find_post_by_id(posts, post_id):
 
 
 def sort_key(field):
-    """Return a sort key for a post field: real dates for 'date', lower-case text otherwise."""
+    """Return a sort key for a post field: real dates for 'date', numbers for 'likes',
+    lower-case text otherwise."""
     if field == "date":
         return lambda post: parse_date(post["date"])
+    if field == "likes":
+        return lambda post: post.get("likes", 0)
     return lambda post: post[field].lower()
 
 
@@ -185,7 +188,7 @@ def posts_response(posts):
 def get_posts():
     """Return all blog posts as JSON, optionally sorted and paginated.
 
-    Query parameters: sort=title|content|author|date, direction=asc|desc, page, limit.
+    Query parameters: sort=title|content|author|date|likes, direction=asc|desc, page, limit.
     """
     try:
         return posts_response(sort_posts(load_posts()))
@@ -215,6 +218,7 @@ def add_post():
         "content": fields["content"],
         "author": fields.get("author", DEFAULT_AUTHOR),
         "date": fields.get("date", date.today().strftime(DATE_FORMAT)),
+        "likes": 0,
     }
     posts.append(new_post)
     save_posts(posts)
@@ -254,6 +258,18 @@ def update_post(post_id):
         return jsonify({"error": str(error)}), 400
 
     post.update(fields)
+    save_posts(posts)
+    return jsonify(post), 200
+
+
+@api.route('/posts/<int:post_id>/like', methods=['POST'])
+def like_post(post_id):
+    """Add one like to the post with this id and return the post; 404 if it does not exist."""
+    posts = load_posts()
+    post = find_post_by_id(posts, post_id)
+    if post is None:
+        return jsonify({"error": f"Post with id {post_id} was not found."}), 404
+    post["likes"] = post.get("likes", 0) + 1
     save_posts(posts)
     return jsonify(post), 200
 
