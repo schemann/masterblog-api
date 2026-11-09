@@ -67,5 +67,31 @@ def delete_post(post_id):
     POSTS.remove(post)
     return jsonify({"message": f"Post with id {post_id} has been deleted successfully."}), 200
 
+
+@app.route('/api/posts/<int:post_id>', methods=['PUT'])
+def update_post(post_id):
+    """Update title and/or content of a post; fields left out keep their value."""
+    post = find_post_by_id(post_id)
+    if post is None:
+        return jsonify({"error": f"Post with id {post_id} was not found."}), 404
+
+    # An empty body means "no changes"; a body that is not a JSON object is an error
+    data = request.get_json(silent=True)
+    if data is None and request.get_data():
+        data = []
+    data = {} if data is None else data
+    if not isinstance(data, dict):
+        return jsonify({"error": "The request body must be a JSON object."}), 400
+
+    invalid = [field for field in REQUIRED_FIELDS
+               if field in data and (not isinstance(data[field], str) or not data[field].strip())]
+    if invalid:
+        return jsonify({"error": "Fields must not be empty", "invalid": invalid}), 400
+
+    for field in REQUIRED_FIELDS:
+        if field in data:
+            post[field] = data[field].strip()
+    return jsonify(post), 200
+
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5002, debug=True)
