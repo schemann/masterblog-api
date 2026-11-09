@@ -36,31 +36,66 @@ def find_post_by_id(post_id):
     return None
 
 
-@app.route('/api/posts', methods=['GET'])
-def get_posts():
-    """Return all blog posts as JSON.
+def sort_posts(posts):
+    """Sort posts by ?sort=title|content&direction=asc|desc; raise ValueError if invalid.
 
-    Optional sorting: ?sort=title|content&direction=asc|desc (direction defaults to asc).
     Without these parameters the posts keep their original order.
     """
     sort_field = request.args.get('sort')
     direction = request.args.get('direction')
     if sort_field is None and direction is None:
-        return jsonify(POSTS)
-
+        return posts
     if sort_field is None:
-        return jsonify({"error": "direction needs a sort field, e.g. ?sort=title"}), 400
+        raise ValueError("direction needs a sort field, e.g. ?sort=title")
     if sort_field not in SORT_FIELDS:
-        return jsonify({"error": f"Invalid sort field '{sort_field}'. "
-                                 f"Use one of: {', '.join(SORT_FIELDS)}."}), 400
+        raise ValueError(f"Invalid sort field '{sort_field}'. "
+                         f"Use one of: {', '.join(SORT_FIELDS)}.")
     direction = direction or 'asc'
     if direction not in SORT_DIRECTIONS:
-        return jsonify({"error": f"Invalid direction '{direction}'. "
-                                 f"Use one of: {', '.join(SORT_DIRECTIONS)}."}), 400
+        raise ValueError(f"Invalid direction '{direction}'. "
+                         f"Use one of: {', '.join(SORT_DIRECTIONS)}.")
+    return sorted(posts, key=lambda post: post[sort_field].lower(),
+                  reverse=direction == 'desc')
 
-    sorted_posts = sorted(POSTS, key=lambda post: post[sort_field].lower(),
-                          reverse=direction == 'desc')
-    return jsonify(sorted_posts)
+
+def read_positive_int(name, default):
+    """Return the query parameter `name` as an int >= 1; raise ValueError otherwise."""
+    value = request.args.get(name, str(default))
+    if not value.isdigit() or int(value) < 1:
+        raise ValueError(f"{name} must be a whole number of 1 or higher.")
+    return int(value)
+
+
+def paginate_posts(posts):
+    """Return one page of posts for ?page=&limit= (limit defaults to 10, page to 1).
+
+    Without both parameters all posts are returned.
+    """
+    if 'page' not in request.args and 'limit' not in request.args:
+        return posts
+    page = read_positive_int('page', 1)
+    limit = read_positive_int('limit', 10)
+    start_index = (page - 1) * limit
+    return posts[start_index:start_index + limit]
+
+
+def posts_response(posts):
+    """Return the posts as JSON, with the total count before pagination in X-Total-Count."""
+    response = jsonify(paginate_posts(posts))
+    response.headers['X-Total-Count'] = str(len(posts))
+    return response
+
+
+@app.route('/api/posts', methods=['GET'])
+def get_posts():
+    """Return all blog posts as JSON, optionally sorted and paginated.
+
+    Query parameters: sort=title|content, direction=asc|desc, page, limit.
+    """
+    try:
+        return posts_response(sort_posts(POSTS))
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
 
 
 @app.route('/api/posts', methods=['POST'])
@@ -122,14 +157,18 @@ def search_posts():
     """Return posts whose title contains ?title=... or whose content contains ?content=...
 
     The search ignores upper and lower case. Without search terms all posts are returned.
+    The result can be paginated with page and limit like the list endpoint.
     """
     terms = {field: request.args.get(field, "").strip().lower() for field in REQUIRED_FIELDS}
     terms = {field: term for field, term in terms.items() if term}
-    if not terms:
-        return jsonify(POSTS)
-    results = [post for post in POSTS
-               if any(term in post[field].lower() for field, term in terms.items())]
-    return jsonify(results)
+    results = POSTS
+    if terms:
+        results = [post for post in POSTS
+                   if any(term in post[field].lower() for field, term in terms.items())]
+    try:
+        return posts_response(results)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5002, debug=True)
